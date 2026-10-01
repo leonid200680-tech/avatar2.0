@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <title>AR Mechanical Transmissions</title>
+  <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/donmccurdy/aframe-extras@6.1.1/dist/aframe-extras.min.js"></script>
+  <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
+  <style>
+    body { margin: 0; overflow: hidden; font-family: 'Segoe UI', Roboto, sans-serif; }
+
+    #ui {
+      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+      z-index: 9999; display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;
+      background: rgba(0,0,0,0.6); padding: 10px; border-radius: 10px;
+      transition: opacity 0.4s; max-width: 95vw;
+    }
+    #ui input { padding: 8px; border-radius: 6px; border: none; width: 220px; font-size: 14px; }
+    #ui button {
+      padding: 8px 14px; border-radius: 6px; border: none; cursor: pointer;
+      background: #4a90e2; color: white; font-weight: bold;
+    }
+    #ui button:active { background: #357ab8; }
+
+    #status {
+      position: fixed; top: 10px; left: 50%; transform: translateX(-50%);
+      z-index: 9999; color: white; background: rgba(0,0,0,0.75);
+      padding: 8px 14px; border-radius: 8px; font-size: 14px;
+      display: none; max-width: 90%; text-align: center;
+    }
+
+    #subtitles {
+      position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%);
+      z-index: 9999; width: 90%; max-width: 720px; text-align: center;
+      pointer-events: none; display: flex; flex-direction: column; gap: 6px;
+      transition: opacity 0.4s;
+    }
+    #userSubtitle, #avatarSubtitle {
+      display: none; padding: 8px 14px; border-radius: 10px;
+      font-size: 18px; line-height: 1.35; text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+    }
+    #userSubtitle {
+      color: #cfcfcf; background: rgba(0,0,0,0.55); font-style: italic;
+      align-self: center; max-width: 90%;
+    }
+    #avatarSubtitle {
+      color: #fff; background: rgba(20,60,120,0.75); font-weight: 500;
+      align-self: center; max-width: 100%;
+    }
+
+    .hidden { opacity: 0 !important; pointer-events: none !important; }
+
+    #introOverlay {
+      position: fixed; inset: 0; z-index: 10000;
+      background: linear-gradient(160deg, #0b1220 0%, #101c33 60%, #0b1220 100%);
+      color: #eaeef7; display: flex; align-items: center; justify-content: center;
+      padding: 24px; overflow-y: auto; transition: opacity 0.5s ease;
+    }
+    #introOverlay .card {
+      max-width: 920px; width: 100%;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(120,180,255,0.25);
+      border-radius: 18px; padding: 28px 32px 32px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.55);
+      backdrop-filter: blur(6px);
+    }
+    #introOverlay h1 {
+      font-size: 26px; margin: 0 0 6px;
+      background: linear-gradient(90deg, #7ec8ff, #b18cff);
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+    #introOverlay .subtitle { color: #9db4d6; font-size: 14px; margin: 0 0 22px; }
+    #introOverlay h2 {
+      font-size: 17px; margin: 22px 0 10px; color: #cfe0ff; font-weight: 600;
+      border-left: 3px solid #4a90e2; padding-left: 10px;
+    }
+    #introOverlay table {
+      width: 100%; border-collapse: collapse; font-size: 14px;
+      background: rgba(0,0,0,0.25); border-radius: 10px; overflow: hidden;
+    }
+    #introOverlay thead th {
+      background: rgba(74,144,226,0.25); color: #e6f0ff; text-align: left;
+      padding: 10px 12px; font-weight: 600; font-size: 13px;
+      text-transform: uppercase;
+    }
+    #introOverlay tbody td {
+      padding: 10px 12px; border-top: 1px solid rgba(120,180,255,0.15);
+      vertical-align: top; line-height: 1.4;
+    }
+    #introOverlay tbody td:first-child {
+      font-weight: 600; color: #a9d0ff; white-space: nowrap;
+    }
+    #introOverlay ol.steps {
+      margin: 8px 0 0 18px; color: #d6e2f5; font-size: 14px; line-height: 1.65;
+    }
+    #introOverlay ol.steps li strong { color: #ffd77a; }
+
+    .btnStart {
+      display: block; margin: 26px auto 0; padding: 14px 44px;
+      font-size: 17px; font-weight: 700; letter-spacing: 1px;
+      color: #0b1220; background: linear-gradient(90deg, #7ec8ff, #b18cff);
+      border: none; border-radius: 12px; cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.2s;
+      box-shadow: 0 8px 24px rgba(126,200,255,0.35);
+    }
+    .btnStart:hover { transform: translateY(-2px); }
+    .btnStart:active { transform: translateY(0); }
+    .btnStart:disabled { opacity: 0.5; cursor: wait; }
+
+    #helpBtn {
+      position: fixed; top: 14px; right: 14px; z-index: 9999;
+      padding: 8px 14px; border-radius: 10px;
+      border: 1px solid rgba(120,180,255,0.5);
+      background: rgba(10,20,40,0.75); color: #cfe0ff;
+      font-size: 14px; font-weight: 600; cursor: pointer;
+    }
+    #helpBtn:hover { background: rgba(30,60,110,0.9); }
+
+    #loadingBox {
+      position: fixed; inset: 0; z-index: 10001;
+      background: rgba(0,0,0,0.9); color: #cfe0ff;
+      display: none; align-items: center; justify-content: center;
+      flex-direction: column; gap: 14px; font-size: 16px;
+      text-align: center; padding: 20px;
+    }
+    #loadingBox .spinner {
+      width: 42px; height: 42px;
+      border: 4px solid rgba(126,200,255,0.25);
+      border-top-color: #7ec8ff; border-radius: 50%;
+      animation: spin 0.9s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body style="margin:0; overflow:hidden">
+
+  <a-scene
+    vr-mode-ui="enabled: false;"
+    renderer="logarithmicDepthBuffer: true;"
+    embedded
+    arjs="trackingMethod: best; sourceType: webcam; debugUIEnabled: false;"
+  >
+    <a-assets>
+      <a-asset-item id="avatarAsset"      src="models/avatar.glb"></a-asset-item>
+      <a-asset-item id="avatar1Asset"     src="models/avatar1.glb"></a-asset-item>
+      <a-asset-item id="gearAsset"        src="models/gear.glb"></a-asset-item>
+      <a-asset-item id="wormGearAsset"    src="models/worm_gear.glb"></a-asset-item>
+      <a-asset-item id="bevelGearAsset"   src="models/bevel_gear.glb"></a-asset-item>
+      <a-asset-item id="rackPinionAsset"  src="models/rack_pinion.glb"></a-asset-item>
+      <a-asset-item id="timingBeltAsset"  src="models/timing_belt.glb"></a-asset-item>
+      <a-asset-item id="chainDriveAsset"  src="models/chain_drive.glb"></a-asset-item>
+    </a-assets>
+
+    <a-entity camera></a-entity>
+
+    <a-marker preset="hiro">
+
+      <!-- Аватар в покое -->
+      <a-entity id="avatar"
+        avatar-controller
+        gltf-model="#avatarAsset"
+        animation-mixer
+        position="0 0 0"
+        rotation="-60 0 0"
+        scale="0.5 0.5 0.5">
+      </a-entity>
+
+      <!-- Аватар, который говорит -->
+      <a-entity id="avatar1"
+        avatar-controller
+        gltf-model="#avatar1Asset"
+        animation-mixer
+        position="0 0 0"
+        rotation="-60 0 0"
+        scale="0.5 0.5 0.5"
+        visible="false">
+      </a-entity>
+
+      <!-- ===== МОДЕЛИ ПЕРЕДАЧ =====
+           Внешний <a-entity> — "карусель", вращается через spin-y.
+           Внутренний <a-entity> — сама модель, её rotation НЕ трогаем. -->
+
+      <a-entity id="gearModel" position="0.8 0 0" spin-y>
+        <a-entity gltf-model="#gearAsset" visible="false"
+          rotation="-30 0 0" scale="0.5 0.5 0.5"></a-entity>
+      </a-entity>
+
+      <a-entity id="wormGearModel" position="0.8 0 0" spin-y>
+        <a-entity gltf-model="#wormGearAsset" visible="false"
+          rotation="0 90 270" scale="0.02 0.02 0.02"></a-entity>
+      </a-entity>
+
+      <a-entity id="bevelGearModel" position="0.8 0 0" spin-y>
+        <a-entity gltf-model="#bevelGearAsset" visible="false"
+          rotation="-60 0 0" scale="0.02 0.02 0.02"></a-entity>
+      </a-entity>
+
+      <a-entity id="rackPinionModel" position="0.8 0 0" spin-y>
+        <a-entity gltf-model="#rackPinionAsset" visible="false"
+          rotation="270 0 0" scale="0.4 0.4 0.4"></a-entity>
+      </a-entity>
+
+      <a-entity id="timingBeltModel" position="0.8 0 0" rotation="0 0 0" spin-y>
+        <a-entity gltf-model="#timingBeltAsset" visible="false" position="0 0 -1"
+          rotation="0 90 90" scale="0.2 0.2 0.2"></a-entity>
+      </a-entity>
+
+      <a-entity id="chainDriveModel" position="0 0 0" spin-y>
+        <a-entity gltf-model="#chainDriveAsset" visible="false"
+          rotation="-60 0 0" scale="0.3 0.3 0.3"></a-entity>
+      </a-entity>
+
+    </a-marker>
+  </a-scene>
+
+  <div id="loadingBox">
+    <div class="spinner"></div>
+    <div id="loadingText">Запуск камеры...</div>
+  </div>
+
+  <div id="introOverlay">
+    <div class="card">
+      <h1>AR Mechanical Transmissions — умный аватар</h1>
+      <p class="subtitle">
+        Тема: механические передачи. Аватар отвечает на вопросы голосом
+        и показывает 3D-модель передачи, объясняя понижение и повышение крутящего момента.
+      </p>
+
+      <h2>О чём можно спросить (6 видов передач)</h2>
+      <table>
+        <thead><tr><th>Передача</th><th>Тип</th><th>Что расскажет аватар</th></tr></thead>
+        <tbody>
+          <tr><td>Цилиндрическая шестерня</td><td>Зубчатая</td><td>Соотношение зубьев и крутящий момент</td></tr>
+          <tr><td>Червячная передача</td><td>Винтовая</td><td>Большое понижение, самоторможение</td></tr>
+          <tr><td>Коническая шестерня</td><td>Зубчатая</td><td>Передача момента под углом 90°</td></tr>
+          <tr><td>Реечная передача</td><td>Зубчатая</td><td>Вращение → поступательное движение</td></tr>
+          <tr><td>Ремень ГРМ</td><td>Ременная</td><td>Синхронная передача без проскальзывания</td></tr>
+          <tr><td>Цепная передача</td><td>Цепная</td><td>Большие расстояния и высокие моменты</td></tr>
+        </tbody>
+      </table>
+
+      <h2>Как пользоваться</h2>
+      <ol class="steps">
+        <li><strong>Открой маркер hiro</strong> на втором экране или распечатай.</li>
+        <li>Нажми <strong>«Начать»</strong> и разреши доступ к камере.</li>
+        <li>Наведи камеру на маркер — появится аватар.</li>
+        <li>Введи вопрос текстом или нажми 🎤 для голосового ввода.</li>
+        <li>Аватар ответит голосом, покажет субтитры и модель передачи.</li>
+      </ol>
+
+      <button class="btnStart" id="startBtn">▶ Начать</button>
+    </div>
+  </div>
+
+  <button id="helpBtn">? Справка</button>
+
+  <div id="ui" class="hidden">
+    <button id="micBtn">🎤 Говорить</button>
+    <input id="textInput" type="text" placeholder="Или введите вопрос...">
+    <button id="sendBtn">Отправить</button>
+    <button id="testVoiceBtn">🔊 Проверить голос</button>
+  </div>
+
+  <div id="status" class="hidden"></div>
+
+  <div id="subtitles" class="hidden">
+    <div id="userSubtitle"></div>
+    <div id="avatarSubtitle"></div>
+  </div>
+
+  <script>
+    // ================= UI =================
+    const introOverlay = document.querySelector('#introOverlay');
+    const uiEl         = document.querySelector('#ui');
+    const subsEl       = document.querySelector('#subtitles');
+    const statusEl     = document.querySelector('#status');
+    const loadingBox   = document.querySelector('#loadingBox');
+    const loadingText  = document.querySelector('#loadingText');
+    const startBtn     = document.querySelector('#startBtn');
+
+    function hideIntro() {
+      introOverlay.style.opacity = '0';
+      setTimeout(() => { introOverlay.style.display = 'none'; }, 500);
+      uiEl.classList.remove('hidden');
+      subsEl.classList.remove('hidden');
+    }
+    function showIntro() {
+      introOverlay.style.display = 'flex';
+      requestAnimationFrame(() => { introOverlay.style.opacity = '1'; });
+      uiEl.classList.add('hidden');
+      subsEl.classList.add('hidden');
+    }
+    document.querySelector('#helpBtn').addEventListener('click', showIntro);
+
+    function showLoading(msg) { loadingText.textContent = msg; loadingBox.style.display = 'flex'; }
+    function hideLoading() { loadingBox.style.display = 'none'; }
+
+    // ================= Проверка окружения =================
+    function isSecure() {
+      return location.protocol === 'https:' ||
+             location.hostname === 'localhost' ||
+             location.hostname === '127.0.0.1';
+    }
+
+    // ================= Кнопка "Начать" =================
+    startBtn.addEventListener('click', async () => {
+      if (!isSecure()) {
+        alert('Камера доступна только по HTTPS или на localhost.\n\n' +
+              'Сейчас: ' + location.origin);
+        return;
+      }
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        alert('Ваш браузер не поддерживает доступ к камере.');
+        return;
+      }
+
+      startBtn.disabled = true;
+      showLoading('Запрашиваю доступ к камере...');
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment' }, audio: false
+        });
+        stream.getTracks().forEach(t => t.stop());
+        hideLoading();
+        startBtn.disabled = false;
+        hideIntro();
+      } catch (err) {
+        hideLoading();
+        startBtn.disabled = false;
+        let msg = 'Не удалось получить доступ к камере.\n\n';
+        if (err.name === 'NotAllowedError' || err.name === 'SecurityError') {
+          msg += 'Доступ запрещён. Разрешите камеру в настройках браузера.';
+        } else if (err.name === 'NotFoundError') {
+          msg += 'Камера не найдена.';
+        } else if (err.name === 'NotReadableError') {
+          msg += 'Камера занята другим приложением.';
+        } else {
+          msg += 'Ошибка: ' + err.name + ' — ' + err.message;
+        }
+        alert(msg);
+      }
+    });
+
+    // ================= Аватар =================
+    AFRAME.registerComponent('avatar-controller', {
+      init: function () {
+        this.idleClip = null;
+        this.talkClip = null;
+
+        this.el.addEventListener('model-loaded', () => {
+          const mesh = this.el.getObject3D('mesh');
+          if (!mesh || !mesh.animations || mesh.animations.length === 0) return;
+
+          const names = mesh.animations.map(a => a.name);
+          console.log('Анимации аватара (' + this.el.id + '):', names);
+
+          this.idleClip = names.find(n => /idle|ожид|stand|wait/i.test(n)) || names[0];
+          this.talkClip = names.find(n => /talk|гов|speak|gesture|wave|explain/i.test(n))
+                          || (names.length > 1 ? names[1] : names[0]);
+
+          this.playIdle();
+        });
+      },
+      playClip: function (name) {
+        if (!name) return;
+        this.el.setAttribute('animation-mixer', {
+          clip: name, loop: 'repeat', crossFadeDuration: 0.5
+        });
+      },
+      playIdle: function () { this.playClip(this.idleClip); },
+      playTalk: function () { this.playClip(this.talkClip); }
+    });
+
+    // ================= ВРАЩЕНИЕ КАК ЮЛА =================
+    //
+    // Компонент вешается на ВНЕШНИЙ контейнер (без gltf-model).
+    // Каждый кадр пишем ему rotation="0 angle 0" — чистое вращение
+    // вокруг мировой Y. Внутренняя модель со своим rotation не трогается,
+    // поэтому ничего не дрожит и не конфликтует.
+    //
+    AFRAME.registerComponent('spin-y', {
+      schema: {
+        speed: { type: 'number', default: 90 }   // градусов в секунду
+      },
+
+      init: function () {
+        this.angle = 0;
+      },
+
+      tick: function (time, delta) {
+        this.angle += this.data.speed * (delta / 1000);
+        if (this.angle >= 360) this.angle -= 360;
+        this.el.setAttribute('rotation', '0 ' + this.angle + ' 0');
+      }
+    });
+
+    // ================= Переключение аватаров =================
+    function useIdleAvatar() {
+      const idleEl = document.querySelector('#avatar');
+      const talkEl = document.querySelector('#avatar1');
+      if (idleEl) idleEl.setAttribute('visible', 'true');
+      if (talkEl) talkEl.setAttribute('visible', 'false');
+      const ctrl = idleEl ? idleEl.components['avatar-controller'] : null;
+      if (ctrl) ctrl.playIdle();
+    }
+
+    function useTalkAvatar() {
+      const idleEl = document.querySelector('#avatar');
+      const talkEl = document.querySelector('#avatar1');
+      if (idleEl) idleEl.setAttribute('visible', 'false');
+      if (talkEl) talkEl.setAttribute('visible', 'true');
+      const ctrl = talkEl ? talkEl.components['avatar-controller'] : null;
+      if (ctrl) ctrl.playTalk();
+    }
+
+    // ================= Субтитры =================
+    const userSubtitleEl   = document.querySelector('#userSubtitle');
+    const avatarSubtitleEl = document.querySelector('#avatarSubtitle');
+    let userSubtitleTimer = null, avatarSubtitleTimer = null;
+
+    function showUserSubtitle(text) {
+      userSubtitleEl.textContent = 'Вы: ' + text;
+      userSubtitleEl.style.display = 'block';
+      clearTimeout(userSubtitleTimer);
+      userSubtitleTimer = setTimeout(() => { userSubtitleEl.style.display = 'none'; }, 4000);
+    }
+    function showAvatarSubtitle(text) {
+      avatarSubtitleEl.textContent = text;
+      avatarSubtitleEl.style.display = 'block';
+      clearTimeout(avatarSubtitleTimer);
+    }
+    function hideAvatarSubtitle() {
+      clearTimeout(avatarSubtitleTimer);
+      avatarSubtitleTimer = setTimeout(() => { avatarSubtitleEl.style.display = 'none'; }, 2000);
+    }
+
+    // ================= Распознавание речи =================
+    const SpeechRecognitionClass = window.SpeechRecognition || window.webkitSpeechRecognition;
+    let recognition = null;
+    let isListening = false;
+
+    if (SpeechRecognitionClass) {
+      recognition = new SpeechRecognitionClass();
+      recognition.lang = 'ru-RU';
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
+
+      recognition.onstart = () => {
+        isListening = true;
+        showStatus('🎤 Слушаю...');
+      };
+      recognition.onresult = (e) => {
+        const t = e.results[0][0].transcript;
+        console.log('Распознано:', t);
+        showUserSubtitle(t);
+        processQuery(t);
+      };
+      recognition.onerror = (e) => {
+        console.warn('Ошибка распознавания:', e.error);
+        isListening = false;
+        if (e.error === 'network') {
+          showStatus('Нет связи с сервером распознавания. Используйте текстовый ввод.');
+        } else if (e.error === 'not-allowed') {
+          showStatus('Микрофон запрещён. Разрешите доступ в браузере.');
+        } else if (e.error === 'no-speech') {
+          showStatus('Речь не распознана. Попробуйте ещё раз.');
+        } else if (e.error === 'audio-capture') {
+          showStatus('Микрофон не найден.');
+        } else {
+          showStatus('Ошибка: ' + e.error);
+        }
+        setTimeout(hideStatus, 4000);
+      };
+      recognition.onend = () => {
+        isListening = false;
+        hideStatus();
+      };
+    }
+
+    document.querySelector('#micBtn').addEventListener('click', () => {
+      if (!recognition) {
+        alert('Голосовой ввод не поддерживается этим браузером.\n\n' +
+              'На iPhone работает только текстовый ввод.\n' +
+              'На Android используйте Chrome.');
+        return;
+      }
+      if (isListening) {
+        try { recognition.stop(); } catch (e) {}
+        return;
+      }
+      setTimeout(() => {
+        try { recognition.start(); }
+        catch (e) {
+          console.warn(e);
+          showStatus('Не удалось запустить микрофон.');
+          setTimeout(hideStatus, 3000);
+        }
+      }, 150);
+    });
+
+    // ================= Озвучка =================
+    let currentAudio = null;
+
+    function stopAudio() {
+      if (currentAudio) {
+        try { currentAudio.pause(); } catch (e) {}
+        currentAudio = null;
+      }
+    }
+
+    function ttsStreamElements(text) {
+      const url = 'https://api.streamelements.com/kappa/v2/speech' +
+                  '?voice=ru-RU-Standard-A' +
+                  '&text=' + encodeURIComponent(text);
+      return new Audio(url);
+    }
+
+    function ttsGoogle(text) {
+      const url = 'https://translate.google.com/translate_tts' +
+                  '?ie=UTF-8' +
+                  '&q=' + encodeURIComponent(text) +
+                  '&tl=ru' +
+                  '&client=tw-ob';
+      return new Audio(url);
+    }
+
+    function ttsSystem(text, onEnd) {
+      if (!window.speechSynthesis) {
+        hideAvatarSubtitle();
+        if (onEnd) onEnd();
+        return;
+      }
+      try { speechSynthesis.cancel(); } catch (e) {}
+
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = 'ru-RU';
+      u.rate = 1.0;
+      u.volume = 1.0;
+
+      const voices = speechSynthesis.getVoices();
+      const ru = voices.find(v => v.lang && v.lang.toLowerCase().startsWith('ru'));
+      if (ru) u.voice = ru;
+
+      u.onend = () => { hideAvatarSubtitle(); if (onEnd) onEnd(); };
+      u.onerror = () => { hideAvatarSubtitle(); if (onEnd) onEnd(); };
+
+      setTimeout(() => {
+        try { speechSynthesis.speak(u); }
+        catch (e) { hideAvatarSubtitle(); if (onEnd) onEnd(); }
+      }, 100);
+    }
+
+    function speak(text, onEnd) {
+      showAvatarSubtitle(text);
+      console.log('🔊 Озвучка:', text);
+      stopAudio();
+
+      const chunks = [];
+      const MAX = 180;
+      let rest = text;
+      while (rest.length > 0) {
+        let cut = rest.slice(0, MAX);
+        const lastSpace = cut.lastIndexOf(' ');
+        if (lastSpace > 100 && rest.length > MAX) cut = cut.slice(0, lastSpace);
+        chunks.push(cut.trim());
+        rest = rest.slice(cut.length).trim();
+      }
+
+      const sources = [
+        { name: 'StreamElements', make: ttsStreamElements },
+        { name: 'Google',         make: ttsGoogle }
+      ];
+
+      let srcIndex = 0;
+      let chunkIndex = 0;
+
+      function tryCurrentSource() {
+        if (srcIndex >= sources.length) {
+          console.warn('Онлайн-озвучка недоступна, переключаюсь на системную');
+          ttsSystem(text, onEnd);
+          return;
+        }
+        chunkIndex = 0;
+        playChunk();
+      }
+
+      function playChunk() {
+        if (chunkIndex >= chunks.length) {
+          hideAvatarSubtitle();
+          if (onEnd) onEnd();
+          return;
+        }
+
+        const source = sources[srcIndex];
+        const chunk = chunks[chunkIndex];
+        console.log('🎧 Источник:', source.name, '| кусок', (chunkIndex + 1) + '/' + chunks.length);
+
+        let audio;
+        try {
+          audio = source.make(chunk);
+        } catch (e) {
+          console.warn('Не удалось создать Audio для', source.name, e);
+          srcIndex++;
+          tryCurrentSource();
+          return;
+        }
+
+        currentAudio = audio;
+        let handled = false;
+
+        audio.onended = () => {
+          if (handled) return;
+          handled = true;
+          chunkIndex++;
+          playChunk();
+        };
+
+        audio.onerror = () => {
+          if (handled) return;
+          handled = true;
+          console.warn('Источник', source.name, 'не сработал, пробую следующий');
+          srcIndex++;
+          tryCurrentSource();
+        };
+
+        audio.play().catch(err => {
+          if (handled) return;
+          handled = true;
+          console.warn('play() отклонён для', source.name, err);
+          srcIndex++;
+          tryCurrentSource();
+        });
+
+        setTimeout(() => {
+          if (handled) return;
+          if (audio.paused && audio.currentTime === 0) {
+            handled = true;
+            console.warn('Таймаут источника', source.name);
+            srcIndex++;
+            tryCurrentSource();
+          }
+        }, 6000);
+      }
+
+      tryCurrentSource();
+    }
+
+    document.querySelector('#testVoiceBtn').addEventListener('click', () => {
+      speak('Проверка голоса. Если вы это слышите, значит озвучка работает.');
+    });
+
+    // ================= База знаний =================
+    const TRANSMISSIONS = [
+      { keys: ['шестерня','цилиндрическая','gear','зубчатое колесо','прямозубая'],
+        model: '#gearModel',
+        answer: 'Цилиндрическая шестерня — базовый элемент зубчатой передачи. ' +
+                'Если ведущая шестерня меньше ведомой, скорость падает, а крутящий момент растёт. ' +
+                'Если наоборот — скорость растёт, момент падает.' },
+      { keys: ['червячная','червяк','worm'],
+        model: '#wormGearModel',
+        answer: 'Червячная передача даёт большое понижение и самоторможение. ' +
+                'Один оборот червяка поворачивает колесо на один зуб — момент сильно возрастает, ' +
+                'а скорость сильно падает.' },
+      { keys: ['коническая','bevel'],
+        model: '#bevelGearModel',
+        answer: 'Коническая шестерня передаёт вращение под углом, обычно 90 градусов. ' +
+                'Она меняет направление момента, а соотношение зубьев определяет, ' +
+                'будет ли момент повышен или понижен.' },
+      { keys: ['реечная','рейка','rack','pinion'],
+        model: '#rackPinionModel',
+        answer: 'Реечная передача превращает вращение шестерни в поступательное движение рейки. ' +
+                'Она преобразует крутящий момент в линейное усилие.' },
+      { keys: ['ремень','грм','timing belt','belt','ременная'],
+        model: '#timingBeltModel',
+        answer: 'Ремень ГРМ — зубчатый ремень синхронной передачи. ' +
+                'Не проскальзывает, поэтому соотношение скоростей и моментов фиксировано ' +
+                'размерами шкивов.' },
+      { keys: ['цепная','цепь','chain'],
+        model: '#chainDriveModel',
+        answer: 'Цепная передача работает на больших расстояниях и выдерживает высокие моменты. ' +
+                'Соотношение звёздочек задаёт повышение или понижение крутящего момента.' }
+    ];
+
+    function processQuery(text) {
+      const lower = text.toLowerCase();
+      const found = TRANSMISSIONS.find(t => t.keys.some(k => lower.includes(k)));
+
+      if (found) {
+        showTransmissionModel(found.model);
+        useTalkAvatar();
+        speak(found.answer, () => { useIdleAvatar(); });
+      } else {
+        useTalkAvatar();
+        speak('Извините, я не знаю такую передачу. Спросите про шестерню, ' +
+              'червячную, коническую, реечную передачу, ремень ГРМ или цепную передачу.',
+              () => { useIdleAvatar(); });
+      }
+    }
+
+    // ================= Показ модели =================
+    function showTransmissionModel(selector) {
+      const allContainers = document.querySelectorAll(
+        '#gearModel, #wormGearModel, #bevelGearModel, ' +
+        '#rackPinionModel, #timingBeltModel, #chainDriveModel'
+      );
+      allContainers.forEach(container => {
+        const inner = container.querySelector('[gltf-model]');
+        if (inner) inner.setAttribute('visible', 'false');
+      });
+      if (!selector) return;
+      const container = document.querySelector(selector);
+      if (!container) return;
+      const inner = container.querySelector('[gltf-model]');
+      if (inner) inner.setAttribute('visible', 'true');
+    }
+
+    // ================= Текстовый ввод =================
+    document.querySelector('#sendBtn').addEventListener('click', () => {
+      const input = document.querySelector('#textInput');
+      const t = input.value;
+      if (t.trim()) { showUserSubtitle(t); processQuery(t); input.value = ''; }
+    });
+    document.querySelector('#textInput').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') document.querySelector('#sendBtn').click();
+    });
+
+    // ================= Статус =================
+    function showStatus(msg) { statusEl.textContent = msg; statusEl.style.display = 'block'; }
+    function hideStatus() { statusEl.style.display = 'none'; }
+
+    // ================= Логи моделей =================
+    document.querySelectorAll('a-asset-item').forEach(item => {
+      item.addEventListener('error', () => console.error('НЕ ЗАГРУЗИЛАСЬ:', item.getAttribute('src')));
+      item.addEventListener('loaded', () => console.log('Загружена:', item.getAttribute('src')));
+    });
+
+    // ================= Стартовое состояние =================
+    useIdleAvatar();
+  </script>
+</body>
+</html>
